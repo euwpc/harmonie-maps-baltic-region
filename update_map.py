@@ -8,8 +8,6 @@ from matplotlib.colors import ListedColormap, Normalize
 import matplotlib
 import datetime
 import os
-import glob
-import imageio
 import pandas as pd
 
 matplotlib.use('Agg')
@@ -31,7 +29,7 @@ def parse_qml_colormap(qml_file, vmin, vmax):
     return ListedColormap(colors), Normalize(vmin=vmin, vmax=vmax)
 
 # --- Step 1: Latest model run ---
-wfs_url = "https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature&storedquery_id=fmi::forecast::harmonie::surface::grid"
+wfs_url = "https://opendata.fmi.fi/wfs?service=WFS&amp;version=2.0.0&amp;request=getFeature&amp;storedquery_id=fmi::forecast::harmonie::surface::grid"
 response = requests.get(wfs_url, timeout=60)
 response.raise_for_status()
 tree = ET.fromstring(response.content)
@@ -42,13 +40,13 @@ origintimes = [elem.text for elem in tree.findall('.//omso:phenomenonTime//gml:b
 latest_origintime = max(origintimes)
 run_time_str = datetime.datetime.strptime(latest_origintime, "%Y-%m-%dT%H:%M:%SZ").strftime("%Y-%m-%d %H:%M UTC")
 
-# --- Step 2: Download with Precipitation1h added ---
+# --- Step 2: Download with Precipitation1h ---
 download_url = (
     "https://opendata.fmi.fi/download?"
-    "producer=harmonie_scandinavia_surface&"
-    "param=temperature,Dewpoint,Pressure,CAPE,WindGust,Precipitation1h&"  # Added Precipitation1h
-    "format=netcdf&"
-    "bbox=10,53,35,71&"
+    "producer=harmonie_scandinavia_surface&amp;"
+    "param=temperature,Dewpoint,Pressure,CAPE,WindGust,Precipitation1h&amp;"
+    "format=netcdf&amp;"
+    "bbox=10,53,35,71&amp;"
     "projection=EPSG:4326"
 )
 response = requests.get(download_url, timeout=300)
@@ -65,16 +63,15 @@ dewpoint_c = ds['dew_point_temperature_10'] - 273.15
 pressure_hpa = ds['air_pressure_at_sea_level_1'] / 100
 cape = ds['atmosphere_specific_convective_available_potential_energy_59']
 windgust_ms = ds['wind_speed_of_gust_417']
-precip1h_mm = ds['precipitation_amount_1']  # 1-hour precipitation accumulation in mm (or kg/m²)
+precip1h_mm = ds['precipitation_amount_353']  # Fixed variable name
 
 # --- Step 4: Load custom colormaps ---
 temp_cmap, temp_norm = parse_qml_colormap("temperature_color_table_high.qml", vmin=-40, vmax=50)
 cape_cmap, cape_norm = parse_qml_colormap("cape_color_table.qml", vmin=0, vmax=5000)
 pressure_cmap, pressure_norm = parse_qml_colormap("pressure_color_table.qml", vmin=870, vmax=1070)
 windgust_cmap, windgust_norm = parse_qml_colormap("wind_gust_color_table.qml", vmin=0, vmax=50)
-precip_cmap, precip_norm = parse_qml_colormap("precipitation_color_table.qml", vmin=0, vmax=30)  # Adjust vmax if needed
+precip_cmap, precip_norm = parse_qml_colormap("precipitation_color_table.qml", vmin=0, vmax=30)
 
-# Dewpoint uses same colormap and range as temperature
 dewpoint_cmap = temp_cmap
 dewpoint_norm = Normalize(vmin=-40, vmax=50)
 
@@ -102,8 +99,8 @@ variables = {
                     'levels': [0, 20, 40, 100, 200, 300, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2400, 2800, 3200, 3600, 4000, 4500, 5000]},
     'windgust':    {'var': windgust_ms, 'cmap': windgust_cmap, 'norm': windgust_norm, 'unit': 'm/s', 'title': 'Wind Gust (m/s)', 
                     'levels': [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50]},
-    'precipitation': {'var': precip1h_mm, 'cmap': precip_cmap, 'norm': precip_norm, 'unit': 'mm/h', 'title': '1h Precipitation Amount (mm)', 
-                      'levels': [0, 0.2, 0.5, 1, 2, 3, 5, 7, 10, 15, 20, 25, 30]},  # Reasonable levels for 1h precip
+    'precipitation': {'var': precip1h_mm, 'cmap': precip_cmap, 'norm': precip_norm, 'unit': 'mm', 'title': '1h Precipitation (mm)', 
+                      'levels': [0, 0.2, 0.5, 1, 2, 3, 5, 7, 10, 15, 20, 25, 30]},
 }
 
 # --- Generate Baltic region only ---
@@ -145,11 +142,13 @@ for view_key, view_conf in views.items():
         plt.savefig(f"{var_key}{suffix}.png", dpi=180, bbox_inches='tight')
         plt.close()
 
-        # Animation — DPI=125
+        # Forecast frames for slider (120 DPI, individual PNGs)
         frame_paths = []
+        frame_times = []  # To save valid times for JS
         time_dim = 'time' if 'time' in conf['var'].dims else 'time_h'
         time_values = ds[time_dim].values
         
+        # Fixed size for 120 DPI → 1228×922 pixels (close to divisible by 16)
         fig_width = 10.24
         fig_height = 7.68
         
@@ -157,7 +156,7 @@ for view_key, view_conf in views.items():
             if i >= 48 and (i - 48) % 3 != 0:
                 continue
 
-            fig = plt.figure(figsize=(fig_width, fig_height), dpi=125)
+            fig = plt.figure(figsize=(fig_width, fig_height), dpi=120)
             ax = plt.axes(projection=ccrs.PlateCarree())
             slice_data = conf['var'].isel(**{time_dim: i})
             hour_offset = i
@@ -187,25 +186,20 @@ for view_key, view_conf in views.items():
             valid_dt = pd.to_datetime(time_values[i])
             valid_dt_eet = valid_dt + pd.Timedelta(hours=2)
             valid_str = valid_dt_eet.strftime("%a %d %b %H:%M EET")
+            frame_times.append(valid_str)
             
             plt.title(f"HARMONIE {conf['title']}\nValid: {valid_str} | +{hour_offset}h from run {run_time_str}\nMin: {slice_min:.1f} {conf['unit']} | Max: {slice_max:.1f} {conf['unit']}")
 
-            frame_path = f"frame_{var_key}{suffix}_{i:03d}.png"
-            plt.savefig(frame_path, dpi=125, facecolor='white', pad_inches=0.3)
+            frame_path = f"{var_key}{suffix}_frame_{i:03d}.png"
+            plt.savefig(frame_path, dpi=120, facecolor='white', pad_inches=0.3)
             plt.close()
             frame_paths.append(frame_path)
 
-        video_path = f"{var_key}{suffix}_animation.mp4"
-        with imageio.get_writer(video_path, fps=2, codec='libx264', pixelformat='yuv420p', quality=8, macro_block_size=16) as writer:
-            for fp in frame_paths:
-                img = imageio.imread(fp)
-                writer.append_data(img)
-
-        for fp in frame_paths:
-            os.remove(fp)
+        # Save frame times as JSON for JS (optional, or hardcode in HTML)
+        # For simplicity, we'll handle times in JS based on step
 
 # --- Cleanup ---
 if os.path.exists("harmonie.nc"):
     os.remove("harmonie.nc")
 
-print("Baltic region maps + MP4 animations generated (including 1h Precipitation)")
+print("Baltic region maps + forecast frames generated (slider ready)")
