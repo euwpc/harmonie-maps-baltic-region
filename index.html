@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HARMONIE Forecast Maps</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Arial, sans-serif; 
+            text-align: center; 
+            margin: 0;
+            padding: 0;
+            background: #f5f7fa; 
+            color: #333;
+            line-height: 1.6;
+        }
+        h1, h2 { 
+            color: #2c3e50; 
+            margin: 30px 0 20px;
+        }
+        img, video { 
+            max-width: 100%; 
+            height: auto; 
+            border: 1px solid #ddd; 
+            border-radius: 10px; 
+            box-shadow: 0 6px 12px rgba(0,0,0,0.1); 
+            margin: 25px 0; 
+            background: #fff;
+        }
+        video {
+            background: #000;
+        }
+        .download-btn {
+            display: inline-block;
+            margin: 12px;
+            padding: 12px 28px;
+            background: #2980b9;
+            color: white;
+            text-decoration: none;
+            font-weight: 600;
+            border-radius: 6px;
+            transition: background 0.3s ease;
+        }
+        .download-btn:hover { background: #3498db; }
+        .section { margin: 50px 0; padding: 0 20px; }
+        select { 
+            padding: 12px 16px; 
+            font-size: 1.1em; 
+            margin: 20px; 
+            border-radius: 8px; 
+            background: white;
+            border: 1px solid #ccc;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        }
+        .footer { 
+            margin: 80px 0 40px; 
+            color: #7f8c8d; 
+            font-size: 0.95em; 
+        }
+    </style>
+</head>
+<body>
+    <h1>Select View</h1>
+    <select id="view-select">
+        <option value="">Focused View (Southern Finland & Baltics)</option>
+        <option value="_wide">Wide View (Full Scandinavia + Northern Europe)</option>
+    </select>
+
+    <h1>Select Analysis Map</h1>
+    <select id="analysis-select">
+        <option value="temperature">2m Temperature (°C)</option>
+        <option value="dewpoint">2m Dew Point (°C)</option>
+        <option value="pressure">MSLP (hPa)</option>
+        <option value="cape">CAPE (J/kg)</option>
+        <option value="windgust">Wind Gust (m/s)</option>
+    </select>
+
+    <div class="section">
+        <img id="analysis-map" src="temperature.png" alt="Analysis Map">
+        <br>
+        <a id="download-analysis" href="temperature.png" download="HARMONIE_temperature.png" class="download-btn">
+            Download Analysis Map (PNG)
+        </a>
+    </div>
+
+    <h1>Select Forecast Animation</h1>
+    <select id="animation-select">
+        <option value="temperature">2m Temperature (°C)</option>
+        <option value="dewpoint">2m Dew Point (°C)</option>
+        <option value="pressure">MSLP (hPa)</option>
+        <option value="cape">CAPE (J/kg)</option>
+        <option value="windgust">Wind Gust (m/s)</option>
+    </select>
+
+    <div class="section">
+        <video id="anim-video" controls autoplay loop muted playsinline>
+            <source src="temperature_animation.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+        
+        <br>
+        <a id="download-anim" href="temperature_animation.mp4" download="HARMONIE_temperature_forecast.mp4" class="download-btn">
+            Download Animation (MP4)
+        </a>
+    </div>
+
+    <div class="footer">
+        <p>Data source: Finnish Meteorological Institute (FMI) open data</p>
+        <p>© Harmonie Maps</p>
+    </div>
+
+    <script>
+        const viewSelect = document.getElementById('view-select');
+        let currentSuffix = '';
+
+        const analysisSelect = document.getElementById('analysis-select');
+        const analysisMap = document.getElementById('analysis-map');
+        const downloadAnalysis = document.getElementById('download-analysis');
+
+        const animSelect = document.getElementById('animation-select');
+        const animVideo = document.getElementById('anim-video');
+        const downloadAnim = document.getElementById('download-anim');
+
+        const baseAnalysisFiles = {
+            'temperature': 'temperature.png',
+            'dewpoint': 'dewpoint.png',
+            'pressure': 'pressure.png',
+            'cape': 'cape.png',
+            'windgust': 'windgust.png'
+        };
+
+        const baseAnimFiles = {
+            'temperature': 'temperature_animation.mp4',
+            'dewpoint': 'dewpoint_animation.mp4',
+            'pressure': 'pressure_animation.mp4',
+            'cape': 'cape_animation.mp4',
+            'windgust': 'windgust_animation.mp4'
+        };
+
+        function updateAll() {
+            const analysisVal = analysisSelect.value;
+            const animVal = animSelect.value;
+            const ts = new Date().getTime();
+
+            analysisMap.src = baseAnalysisFiles[analysisVal].replace('.png', currentSuffix + '.png') + '?ts=' + ts;
+            downloadAnalysis.href = baseAnalysisFiles[analysisVal].replace('.png', currentSuffix + '.png');
+            downloadAnalysis.download = `HARMONIE_${analysisVal}${currentSuffix}.png`;
+
+            const videoSrc = baseAnimFiles[animVal].replace('_animation.mp4', currentSuffix + '_animation.mp4') + '?ts=' + ts;
+            animVideo.querySelector('source').src = videoSrc;
+            animVideo.load();
+            downloadAnim.href = baseAnimFiles[animVal].replace('_animation.mp4', currentSuffix + '_animation.mp4');
+            downloadAnim.download = `HARMONIE_${animVal}${currentSuffix}_forecast.mp4`;
+        }
+
+        viewSelect.addEventListener('change', () => {
+            currentSuffix = viewSelect.value;
+            updateAll();
+        });
+
+        analysisSelect.addEventListener('change', updateAll);
+        animSelect.addEventListener('change', updateAll);
+
+        window.onload = () => {
+            updateAll();
+        };
+    </script>
+</body>
+</html>
