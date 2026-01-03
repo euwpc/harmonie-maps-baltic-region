@@ -64,18 +64,15 @@ dewpoint_c = ds['dew_point_temperature_10'] - 273.15
 pressure_hpa = ds['air_pressure_at_sea_level_1'] / 100
 cape = ds['atmosphere_specific_convective_available_potential_energy_59']
 windgust_ms = ds['wind_speed_of_gust_417']
-precip1h_mm = ds['precipitation_amount_353'] * 3600.0
-precip1h_mm.attrs['units'] = 'mm'
-  # Correct variable name
+precip1h_mm = ds['precipitation_amount_353'] *3600
 
 # --- Step 4: Load custom colormaps ---
 temp_cmap, temp_norm = parse_qml_colormap("temperature_color_table_high.qml", vmin=-40, vmax=50)
 cape_cmap, cape_norm = parse_qml_colormap("cape_color_table.qml", vmin=0, vmax=5000)
 pressure_cmap, pressure_norm = parse_qml_colormap("pressure_color_table.qml", vmin=870, vmax=1070)
 windgust_cmap, windgust_norm = parse_qml_colormap("wind_gust_color_table.qml", vmin=0, vmax=50)
-precip_cmap, precip_norm = parse_qml_colormap("precipitation_color_table.qml", vmin=0, vmax=125)
+precip_cmap, precip_norm = parse_qml_colormap("precipitation_color_table.qml", vmin=0, vmax=30)
 
-# Dewpoint uses same colormap and range as temperature
 dewpoint_cmap = temp_cmap
 dewpoint_norm = Normalize(vmin=-40, vmax=50)
 
@@ -87,9 +84,9 @@ def get_analysis(var):
         return var.isel(time_h=0)
     return var
 
-# --- Step 6: Only Baltic Region view ---
+# --- Step 6: Baltic Region view with tighter zoom ---
 views = {
-    'baltic': {'extent': [20, 30, 54, 61], 'suffix': ''}
+    'baltic': {'extent': [19.5, 30.5, 53.5, 61.5], 'suffix': ''}  # Tighter zoom to match your example
 }
 
 variables = {
@@ -104,7 +101,7 @@ variables = {
     'windgust':    {'var': windgust_ms, 'cmap': windgust_cmap, 'norm': windgust_norm, 'unit': 'm/s', 'title': 'Wind Gust (m/s)', 
                     'levels': [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50]},
     'precipitation': {'var': precip1h_mm, 'cmap': precip_cmap, 'norm': precip_norm, 'unit': 'mm', 'title': '1h Precipitation (mm)', 
-                      'levels': [0, 0.1, 0.2, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 20, 24, 30, 40, 50, 60, 80, 100, 125]},
+                      'levels': [0, 0.1, 0.2, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 20, 24, 30]},
 }
 
 # --- Generate Baltic region only ---
@@ -116,19 +113,15 @@ for view_key, view_conf in views.items():
     for var_key, conf in variables.items():
         data = get_analysis(conf['var'])
         
-        # Correct crop for min/max
-        try:
-            data_cropped = data.sel(lon=slice(lon_min, lon_max), lat=slice(lat_max, lat_min), method='nearest')
-            min_val = float(data_cropped.min(skipna=True))
-            max_val = float(data_cropped.max(skipna=True))
-        except:
-            min_val = float(data.min(skipna=True))
-            max_val = float(data.max(skipna=True))
+        # Crop data first for correct min/max (Baltic only)
+        cropped_data = data.sel(lon=slice(lon_min, lon_max), lat=slice(lat_max, lat_min))
+        min_val = float(cropped_data.min(skipna=True))
+        max_val = float(cropped_data.max(skipna=True))
         
-        fig = plt.figure(figsize=(8, 6))
+        fig = plt.figure(figsize=(10, 8))  # Slightly larger for better proportions
         ax = plt.axes(projection=ccrs.PlateCarree())
         data.plot.contourf(ax=ax, transform=ccrs.PlateCarree(), cmap=conf['cmap'], norm=conf['norm'], levels=100,
-                           cbar_kwargs={'label': conf['unit'], 'shrink': 0.8})
+                           cbar_kwargs={'label': conf['unit'], 'shrink': 0.8, 'pad': 0.05})
         
         if var_key == 'windgust':
             cl = data.plot.contour(ax=ax, transform=ccrs.PlateCarree(), colors='white', linewidths=0.35, levels=conf['levels'], alpha=0.7)
@@ -137,21 +130,21 @@ for view_key, view_conf in views.items():
             cl = data.plot.contour(ax=ax, transform=ccrs.PlateCarree(), colors='black', linewidths=0.5, levels=conf['levels'])
             ax.clabel(cl, inline=True, fontsize=8, fmt="%d")
         
-        ax.coastlines(resolution='10m')
+        ax.coastlines(resolution='10m', linewidth=1.2)
         ax.add_feature(cfeature.BORDERS, linestyle='-', edgecolor='black', linewidth=1.2, alpha=0.9)
-        ax.gridlines(draw_labels=True)
+        ax.gridlines(draw_labels=True, linewidth=0.8, color='gray', alpha=0.5)
         ax.set_extent(extent)
         
-        plt.title(f"HARMONIE {conf['title']}\nModel run: {run_time_str} | Analysis\nMin: {min_val:.1f} {conf['unit']} | Max: {max_val:.1f} {conf['unit']}")
-        plt.savefig(f"{var_key}{suffix}.png", dpi=180, bbox_inches='tight')
+        plt.title(f"HARMONIE {conf['title']}\nModel run: {run_time_str} | Analysis\nMin: {min_val:.1f} {conf['unit']} | Max: {max_val:.1f} {conf['unit']}", fontsize=14, pad=20)
+        plt.savefig(f"{var_key}{suffix}.png", dpi=180, bbox_inches='tight', facecolor='#f8f9fa')
         plt.close()
 
-        # Animation — 120 DPI, fixed size
+        # Animation — 120 DPI, tighter view
         frame_paths = []
         time_dim = 'time' if 'time' in conf['var'].dims else 'time_h'
         time_values = ds[time_dim].values
         
-        fig_width = 10.24  # 1280px at 125 DPI → close to divisible by 16
+        fig_width = 10.24
         fig_height = 7.68
         
         for i in range(len(time_values)):
@@ -163,8 +156,9 @@ for view_key, view_conf in views.items():
             slice_data = conf['var'].isel(**{time_dim: i})
             hour_offset = i
 
+            # Min/max only in Baltic region
             try:
-                slice_cropped = slice_data.sel(lon=slice(lon_min, lon_max), lat=slice(lat_max, lat_min), method='nearest')
+                slice_cropped = slice_data.sel(lon=slice(lon_min, lon_max), lat=slice(lat_max, lat_min))
                 slice_min = float(slice_cropped.min(skipna=True))
                 slice_max = float(slice_cropped.max(skipna=True))
             except:
@@ -180,16 +174,16 @@ for view_key, view_conf in views.items():
                 cl = slice_data.plot.contour(ax=ax, transform=ccrs.PlateCarree(), colors='black', linewidths=0.5, levels=conf['levels'])
                 ax.clabel(cl, inline=True, fontsize=8, fmt="%d")
 
-            ax.coastlines(resolution='10m')
+            ax.coastlines(resolution='10m', linewidth=1.2)
             ax.add_feature(cfeature.BORDERS, linestyle='-', edgecolor='black', linewidth=1.2, alpha=0.9)
-            ax.gridlines(draw_labels=True)
+            ax.gridlines(draw_labels=True, linewidth=0.8, color='gray', alpha=0.5)
             ax.set_extent(extent)
             
             valid_dt = pd.to_datetime(time_values[i])
             valid_dt_eet = valid_dt + pd.Timedelta(hours=2)
             valid_str = valid_dt_eet.strftime("%a %d %b %H:%M EET")
             
-            plt.title(f"HARMONIE {conf['title']}\nValid: {valid_str} | +{hour_offset}h from run {run_time_str}\nMin: {slice_min:.1f} {conf['unit']} | Max: {slice_max:.1f} {conf['unit']}")
+            plt.title(f"HARMONIE {conf['title']}\nValid: {valid_str} | +{hour_offset}h from run {run_time_str}\nMin: {slice_min:.1f} {conf['unit']} | Max: {slice_max:.1f} {conf['unit']}", fontsize=13, pad=15)
 
             frame_path = f"frame_{var_key}{suffix}_{i:03d}.png"
             plt.savefig(frame_path, dpi=120, facecolor='white', pad_inches=0.3)
@@ -209,4 +203,4 @@ for view_key, view_conf in views.items():
 if os.path.exists("harmonie.nc"):
     os.remove("harmonie.nc")
 
-print("Baltic region maps + MP4 animations generated (including 1h Precipitation)")
+print("Baltic region maps + MP4 animations generated")
