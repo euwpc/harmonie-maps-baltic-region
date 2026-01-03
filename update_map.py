@@ -64,7 +64,7 @@ dewpoint_c = ds['dew_point_temperature_10'] - 273.15
 pressure_hpa = ds['air_pressure_at_sea_level_1'] / 100
 cape = ds['atmosphere_specific_convective_available_potential_energy_59']
 windgust_ms = ds['wind_speed_of_gust_417']
-precip1h_mm = ds['precipitation_amount_353'] *3600
+precip1h_mm = ds['precipitation_amount_353'] * 3600
 
 # --- Step 4: Load custom colormaps ---
 temp_cmap, temp_norm = parse_qml_colormap("temperature_color_table_high.qml", vmin=-40, vmax=50)
@@ -84,9 +84,9 @@ def get_analysis(var):
         return var.isel(time_h=0)
     return var
 
-# --- Step 6: Baltic Region view with tighter zoom ---
+# --- Step 6: Baltic Region view (tighter zoom to reduce empty space)
 views = {
-    'baltic': {'extent': [19.5, 30.5, 53.5, 61.5], 'suffix': ''}  # Tighter zoom to match your example
+    'baltic': {'extent': [19.5, 30.5, 53.5, 61.5], 'suffix': ''}
 }
 
 variables = {
@@ -113,12 +113,18 @@ for view_key, view_conf in views.items():
     for var_key, conf in variables.items():
         data = get_analysis(conf['var'])
         
-        # Crop data first for correct min/max (Baltic only)
-        cropped_data = data.sel(lon=slice(lon_min, lon_max), lat=slice(lat_max, lat_min))
-        min_val = float(cropped_data.min(skipna=True))
-        max_val = float(cropped_data.max(skipna=True))
+        # Safe min/max calculation with fallback
+        try:
+            cropped_data = data.sel(lon=slice(lon_min, lon_max), lat=slice(lat_max, lat_min))
+            if cropped_data.size == 0:
+                raise ValueError("Empty selection")
+            min_val = float(cropped_data.min(skipna=True))
+            max_val = float(cropped_data.max(skipna=True))
+        except:
+            min_val = float(data.min(skipna=True))
+            max_val = float(data.max(skipna=True))
         
-        fig = plt.figure(figsize=(10, 8))  # Slightly larger for better proportions
+        fig = plt.figure(figsize=(10, 8))
         ax = plt.axes(projection=ccrs.PlateCarree())
         data.plot.contourf(ax=ax, transform=ccrs.PlateCarree(), cmap=conf['cmap'], norm=conf['norm'], levels=100,
                            cbar_kwargs={'label': conf['unit'], 'shrink': 0.8, 'pad': 0.05})
@@ -139,7 +145,7 @@ for view_key, view_conf in views.items():
         plt.savefig(f"{var_key}{suffix}.png", dpi=180, bbox_inches='tight', facecolor='#f8f9fa')
         plt.close()
 
-        # Animation — 120 DPI, tighter view
+        # Animation — 120 DPI
         frame_paths = []
         time_dim = 'time' if 'time' in conf['var'].dims else 'time_h'
         time_values = ds[time_dim].values
@@ -156,9 +162,11 @@ for view_key, view_conf in views.items():
             slice_data = conf['var'].isel(**{time_dim: i})
             hour_offset = i
 
-            # Min/max only in Baltic region
+            # Safe per-frame min/max
             try:
                 slice_cropped = slice_data.sel(lon=slice(lon_min, lon_max), lat=slice(lat_max, lat_min))
+                if slice_cropped.size == 0:
+                    raise ValueError("Empty selection")
                 slice_min = float(slice_cropped.min(skipna=True))
                 slice_max = float(slice_cropped.max(skipna=True))
             except:
