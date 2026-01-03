@@ -29,7 +29,7 @@ def parse_qml_colormap(qml_file, vmin, vmax):
     return ListedColormap(colors), Normalize(vmin=vmin, vmax=vmax)
 
 # --- Step 1: Latest model run ---
-wfs_url = "https://opendata.fmi.fi/wfs?service=WFS&amp;version=2.0.0&amp;request=getFeature&amp;storedquery_id=fmi::forecast::harmonie::surface::grid"
+wfs_url = "https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature&storedquery_id=fmi::forecast::harmonie::surface::grid"
 response = requests.get(wfs_url, timeout=60)
 response.raise_for_status()
 tree = ET.fromstring(response.content)
