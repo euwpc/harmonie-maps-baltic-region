@@ -42,11 +42,11 @@ origintimes = [elem.text for elem in tree.findall('.//omso:phenomenonTime//gml:b
 latest_origintime = max(origintimes)
 run_time_str = datetime.datetime.strptime(latest_origintime, "%Y-%m-%dT%H:%M:%SZ").strftime("%Y-%m-%d %H:%M UTC")
 
-# --- Step 2: Download with wide bbox ---
+# --- Step 2: Download with Precipitation1h added ---
 download_url = (
     "https://opendata.fmi.fi/download?"
     "producer=harmonie_scandinavia_surface&"
-    "param=temperature,Dewpoint,Pressure,CAPE,WindGust&"
+    "param=temperature,Dewpoint,Pressure,CAPE,WindGust,Precipitation1h&"  # Added Precipitation1h
     "format=netcdf&"
     "bbox=10,53,35,71&"
     "projection=EPSG:4326"
@@ -65,16 +65,18 @@ dewpoint_c = ds['dew_point_temperature_10'] - 273.15
 pressure_hpa = ds['air_pressure_at_sea_level_1'] / 100
 cape = ds['atmosphere_specific_convective_available_potential_energy_59']
 windgust_ms = ds['wind_speed_of_gust_417']
+precip1h_mm = ds['precipitation_amount_1']  # 1-hour precipitation accumulation in mm (or kg/m²)
 
 # --- Step 4: Load custom colormaps ---
 temp_cmap, temp_norm = parse_qml_colormap("temperature_color_table_high.qml", vmin=-40, vmax=50)
 cape_cmap, cape_norm = parse_qml_colormap("cape_color_table.qml", vmin=0, vmax=5000)
 pressure_cmap, pressure_norm = parse_qml_colormap("pressure_color_table.qml", vmin=870, vmax=1070)
 windgust_cmap, windgust_norm = parse_qml_colormap("wind_gust_color_table.qml", vmin=0, vmax=50)
+precip_cmap, precip_norm = parse_qml_colormap("precipitation_color_table.qml", vmin=0, vmax=30)  # Adjust vmax if needed
 
 # Dewpoint uses same colormap and range as temperature
 dewpoint_cmap = temp_cmap
-dewpoint_norm = Normalize(vmin=-40, vmax=50)  # Same as temperature
+dewpoint_norm = Normalize(vmin=-40, vmax=50)
 
 # --- Step 5: Helper ---
 def get_analysis(var):
@@ -86,7 +88,7 @@ def get_analysis(var):
 
 # --- Step 6: Only Baltic Region view ---
 views = {
-    'baltic': {'extent': [20, 30, 54, 61], 'suffix': ''}  # lon_min, lon_max, lat_min, lat_max
+    'baltic': {'extent': [20, 30, 54, 61], 'suffix': ''}
 }
 
 variables = {
@@ -100,6 +102,8 @@ variables = {
                     'levels': [0, 20, 40, 100, 200, 300, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2400, 2800, 3200, 3600, 4000, 4500, 5000]},
     'windgust':    {'var': windgust_ms, 'cmap': windgust_cmap, 'norm': windgust_norm, 'unit': 'm/s', 'title': 'Wind Gust (m/s)', 
                     'levels': [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50]},
+    'precipitation': {'var': precip1h_mm, 'cmap': precip_cmap, 'norm': precip_norm, 'unit': 'mm/h', 'title': '1h Precipitation Amount (mm)', 
+                      'levels': [0, 0.2, 0.5, 1, 2, 3, 5, 7, 10, 15, 20, 25, 30]},  # Reasonable levels for 1h precip
 }
 
 # --- Generate Baltic region only ---
@@ -111,9 +115,9 @@ for view_key, view_conf in views.items():
     for var_key, conf in variables.items():
         data = get_analysis(conf['var'])
         
-        # Correct crop for min/max (lat slice: low to high)
+        # Correct crop for min/max
         try:
-            data_cropped = data.sel(lon=slice(lon_min, lon_max), lat=slice(lat_min, lat_max), method='nearest')
+            data_cropped = data.sel(lon=slice(lon_min, lon_max), lat=slice(lat_max, lat_min), method='nearest')
             min_val = float(data_cropped.min(skipna=True))
             max_val = float(data_cropped.max(skipna=True))
         except:
@@ -133,7 +137,7 @@ for view_key, view_conf in views.items():
             ax.clabel(cl, inline=True, fontsize=8, fmt="%d")
         
         ax.coastlines(resolution='10m')
-        ax.add_feature(cfeature.BORDERS, linestyle='-', edgecolor='black', linewidth=1.2, alpha=0.9)  # Highly visible borders
+        ax.add_feature(cfeature.BORDERS, linestyle='-', edgecolor='black', linewidth=1.2, alpha=0.9)
         ax.gridlines(draw_labels=True)
         ax.set_extent(extent)
         
@@ -141,12 +145,11 @@ for view_key, view_conf in views.items():
         plt.savefig(f"{var_key}{suffix}.png", dpi=180, bbox_inches='tight')
         plt.close()
 
-        # Animation — DPI = 125 for higher quality
+        # Animation — DPI=125
         frame_paths = []
         time_dim = 'time' if 'time' in conf['var'].dims else 'time_h'
         time_values = ds[time_dim].values
         
-        # Canvas size tuned for DPI=125 → 1280×960 pixels (divisible by 16)
         fig_width = 10.24
         fig_height = 7.68
         
@@ -159,9 +162,8 @@ for view_key, view_conf in views.items():
             slice_data = conf['var'].isel(**{time_dim: i})
             hour_offset = i
 
-            # Correct crop for per-frame min/max
             try:
-                slice_cropped = slice_data.sel(lon=slice(lon_min, lon_max), lat=slice(lat_min, lat_max), method='nearest')
+                slice_cropped = slice_data.sel(lon=slice(lon_min, lon_max), lat=slice(lat_max, lat_min), method='nearest')
                 slice_min = float(slice_cropped.min(skipna=True))
                 slice_max = float(slice_cropped.max(skipna=True))
             except:
@@ -189,7 +191,7 @@ for view_key, view_conf in views.items():
             plt.title(f"HARMONIE {conf['title']}\nValid: {valid_str} | +{hour_offset}h from run {run_time_str}\nMin: {slice_min:.1f} {conf['unit']} | Max: {slice_max:.1f} {conf['unit']}")
 
             frame_path = f"frame_{var_key}{suffix}_{i:03d}.png"
-            plt.savefig(frame_path, dpi=125, facecolor='white', pad_inches=0.3)  # Fixed padding, no bbox_inches='tight'
+            plt.savefig(frame_path, dpi=125, facecolor='white', pad_inches=0.3)
             plt.close()
             frame_paths.append(frame_path)
 
@@ -206,4 +208,4 @@ for view_key, view_conf in views.items():
 if os.path.exists("harmonie.nc"):
     os.remove("harmonie.nc")
 
-print("Baltic region maps + MP4 animations generated")
+print("Baltic region maps + MP4 animations generated (including 1h Precipitation)")
