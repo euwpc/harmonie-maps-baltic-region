@@ -133,7 +133,7 @@ for view_key, view_conf in views.items():
             ax.clabel(cl, inline=True, fontsize=8, fmt="%d")
         
         ax.coastlines(resolution='10m')
-        ax.add_feature(cfeature.BORDERS, linestyle='-', edgecolor='black', linewidth=1.2, alpha=0.9)  # More visible borders
+        ax.add_feature(cfeature.BORDERS, linestyle='-', edgecolor='black', linewidth=1.2, alpha=0.9)  # Highly visible borders
         ax.gridlines(draw_labels=True)
         ax.set_extent(extent)
         
@@ -141,13 +141,14 @@ for view_key, view_conf in views.items():
         plt.savefig(f"{var_key}{suffix}.png", dpi=180, bbox_inches='tight')
         plt.close()
 
-        # Animation
+        # Animation — DPI = 125 for higher quality
         frame_paths = []
         time_dim = 'time' if 'time' in conf['var'].dims else 'time_h'
         time_values = ds[time_dim].values
         
-        fig_width = 10
-        fig_height = 7
+        # Canvas size tuned for DPI=125 → 1280×960 pixels (divisible by 16)
+        fig_width = 10.24
+        fig_height = 7.68
         
         for i in range(len(time_values)):
             if i >= 48 and (i - 48) % 3 != 0:
@@ -177,7 +178,7 @@ for view_key, view_conf in views.items():
                 ax.clabel(cl, inline=True, fontsize=8, fmt="%d")
 
             ax.coastlines(resolution='10m')
-            ax.add_feature(cfeature.BORDERS, linestyle='-', edgecolor='black', linewidth=1.2, alpha=0.9)  # More visible borders
+            ax.add_feature(cfeature.BORDERS, linestyle='-', edgecolor='black', linewidth=1.2, alpha=0.9)
             ax.gridlines(draw_labels=True)
             ax.set_extent(extent)
             
@@ -188,7 +189,7 @@ for view_key, view_conf in views.items():
             plt.title(f"HARMONIE {conf['title']}\nValid: {valid_str} | +{hour_offset}h from run {run_time_str}\nMin: {slice_min:.1f} {conf['unit']} | Max: {slice_max:.1f} {conf['unit']}")
 
             frame_path = f"frame_{var_key}{suffix}_{i:03d}.png"
-            plt.savefig(frame_path, dpi=115, bbox_inches='tight', pad_inches=0.1, facecolor='white')
+            plt.savefig(frame_path, dpi=125, facecolor='white', pad_inches=0.3)  # Fixed padding, no bbox_inches='tight'
             plt.close()
             frame_paths.append(frame_path)
 
