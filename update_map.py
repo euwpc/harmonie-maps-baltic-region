@@ -43,10 +43,10 @@ run_time_str = datetime.datetime.strptime(latest_origintime, "%Y-%m-%dT%H:%M:%SZ
 # --- Step 2: Download with Precipitation1h ---
 download_url = (
     "https://opendata.fmi.fi/download?"
-    "producer=harmonie_scandinavia_surface&amp;"
-    "param=temperature,Dewpoint,Pressure,CAPE,WindGust,Precipitation1h&amp;"
-    "format=netcdf&amp;"
-    "bbox=10,53,35,71&amp;"
+    "producer=harmonie_scandinavia_surface&"
+    "param=temperature,Dewpoint,Pressure,CAPE,WindGust,Precipitation1h&"
+    "format=netcdf&"
+    "bbox=10,53,35,71&"
     "projection=EPSG:4326"
 )
 response = requests.get(download_url, timeout=300)
