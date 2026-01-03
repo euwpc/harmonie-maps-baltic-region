@@ -153,7 +153,7 @@ for view_key, view_conf in views.items():
             if i >= 48 and (i - 48) % 3 != 0:
                 continue
 
-            fig = plt.figure(figsize=(fig_width, fig_height), dpi=115)
+            fig = plt.figure(figsize=(fig_width, fig_height), dpi=125)
             ax = plt.axes(projection=ccrs.PlateCarree())
             slice_data = conf['var'].isel(**{time_dim: i})
             hour_offset = i
