@@ -64,7 +64,9 @@ dewpoint_c = ds['dew_point_temperature_10'] - 273.15
 pressure_hpa = ds['air_pressure_at_sea_level_1'] / 100
 cape = ds['atmosphere_specific_convective_available_potential_energy_59']
 windgust_ms = ds['wind_speed_of_gust_417']
-precip1h_mm = ds['precipitation_amount_353']  # Correct variable name
+precip1h_mm = ds['precipitation_amount_353'] * 3600.0
+precip1h_mm.attrs['units'] = 'mm'
+  # Correct variable name
 
 # --- Step 4: Load custom colormaps ---
 temp_cmap, temp_norm = parse_qml_colormap("temperature_color_table_high.qml", vmin=-40, vmax=50)
