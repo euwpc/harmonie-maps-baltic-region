@@ -106,14 +106,14 @@
             'dewpoint': 'dewpoint',
             'pressure': 'pressure',
             'cape': 'cape',
-            'windgust': 'windgust'
-            'precipitation': 'precipitation',
+            'windgust': 'windgust',  // ← Fixed: added missing comma
+            'precipitation': 'precipitation'
         };
 
         function updateAll() {
             const param = paramSelect.value;
             const base = baseFiles[param];
-            const ts = new Date().getTime();
+            const ts = Date.now();
 
             analysisMap.src = `${base}.png?ts=${ts}`;
             downloadAnalysis.href = `${base}.png`;
