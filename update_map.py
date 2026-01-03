@@ -3,6 +3,7 @@ import xml.etree.ElementTree as ET
 import xarray as xr
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
+import cartopy.feature as cfeature  # Added for country borders
 from matplotlib.colors import ListedColormap, Normalize
 import matplotlib
 import datetime
@@ -13,6 +14,7 @@ import pandas as pd
 
 matplotlib.use('Agg')
 
+# --- Helper to parse QML color ramp ---
 def parse_qml_colormap(qml_file, vmin, vmax):
     tree = ET.parse(qml_file)
     root = tree.getroot()
@@ -28,7 +30,7 @@ def parse_qml_colormap(qml_file, vmin, vmax):
     colors = [i[1] for i in items]
     return ListedColormap(colors), Normalize(vmin=vmin, vmax=vmax)
 
-# --- Latest model run ---
+# --- Step 1: Latest model run ---
 wfs_url = "https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature&storedquery_id=fmi::forecast::harmonie::surface::grid"
 response = requests.get(wfs_url, timeout=60)
 response.raise_for_status()
@@ -40,7 +42,7 @@ origintimes = [elem.text for elem in tree.findall('.//omso:phenomenonTime//gml:b
 latest_origintime = max(origintimes)
 run_time_str = datetime.datetime.strptime(latest_origintime, "%Y-%m-%dT%H:%M:%SZ").strftime("%Y-%m-%d %H:%M UTC")
 
-# --- Download data ---
+# --- Step 2: Download with wide bbox ---
 download_url = (
     "https://opendata.fmi.fi/download?"
     "producer=harmonie_scandinavia_surface&"
@@ -55,7 +57,7 @@ nc_path = "harmonie.nc"
 with open(nc_path, "wb") as f:
     f.write(response.content)
 
-# --- Load data ---
+# --- Step 3: Load data ---
 ds = xr.open_dataset(nc_path)
 
 temp_c = ds['air_temperature_4'] - 273.15
@@ -64,7 +66,7 @@ pressure_hpa = ds['air_pressure_at_sea_level_1'] / 100
 cape = ds['atmosphere_specific_convective_available_potential_energy_59']
 windgust_ms = ds['wind_speed_of_gust_417']
 
-# --- Colormaps ---
+# --- Step 4: Load custom colormaps ---
 temp_cmap, temp_norm = parse_qml_colormap("temperature_color_table_high.qml", vmin=-40, vmax=50)
 cape_cmap, cape_norm = parse_qml_colormap("cape_color_table.qml", vmin=0, vmax=5000)
 pressure_cmap, pressure_norm = parse_qml_colormap("pressure_color_table.qml", vmin=870, vmax=1070)
@@ -72,6 +74,7 @@ windgust_cmap, windgust_norm = parse_qml_colormap("wind_gust_color_table.qml", v
 dewpoint_cmap = temp_cmap
 dewpoint_norm = Normalize(vmin=-40, vmax=30)
 
+# --- Step 5: Helper ---
 def get_analysis(var):
     if 'time' in var.dims:
         return var.isel(time=0)
@@ -79,9 +82,9 @@ def get_analysis(var):
         return var.isel(time_h=0)
     return var
 
+# --- Step 6: Only Baltic Region view ---
 views = {
-    'focused': {'extent': [19, 30, 56, 61], 'suffix': ''},
-    'wide':    {'extent': [10, 35, 53, 71], 'suffix': '_wide'}
+    'baltic': {'extent': [20, 30, 54, 61], 'suffix': ''}  # Expanded Baltic region
 }
 
 variables = {
@@ -97,6 +100,7 @@ variables = {
                     'levels': [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50]},
 }
 
+# --- Generate Baltic region only ---
 for view_key, view_conf in views.items():
     extent = view_conf['extent']
     suffix = view_conf['suffix']
@@ -113,7 +117,7 @@ for view_key, view_conf in views.items():
             min_val = float(data.min(skipna=True))
             max_val = float(data.max(skipna=True))
         
-        fig = plt.figure(figsize=(8 if view_key == 'wide' else 7, 6))
+        fig = plt.figure(figsize=(8, 6))
         ax = plt.axes(projection=ccrs.PlateCarree())
         data.plot.contourf(ax=ax, transform=ccrs.PlateCarree(), cmap=conf['cmap'], norm=conf['norm'], levels=100,
                            cbar_kwargs={'label': conf['unit'], 'shrink': 0.8})
@@ -126,6 +130,7 @@ for view_key, view_conf in views.items():
             ax.clabel(cl, inline=True, fontsize=8, fmt="%d")
         
         ax.coastlines(resolution='10m')
+        ax.add_feature(cfeature.BORDERS, linestyle=':', edgecolor='gray', alpha=0.6)  # Country borders
         ax.gridlines(draw_labels=True)
         ax.set_extent(extent)
         
@@ -133,7 +138,7 @@ for view_key, view_conf in views.items():
         plt.savefig(f"{var_key}{suffix}.png", dpi=180, bbox_inches='tight')
         plt.close()
 
-        # Animation — fixed size
+        # Animation
         frame_paths = []
         time_dim = 'time' if 'time' in conf['var'].dims else 'time_h'
         time_values = ds[time_dim].values
@@ -168,6 +173,7 @@ for view_key, view_conf in views.items():
                 ax.clabel(cl, inline=True, fontsize=8, fmt="%d")
 
             ax.coastlines(resolution='10m')
+            ax.add_feature(cfeature.BORDERS, linestyle=':', edgecolor='gray', alpha=0.6)
             ax.gridlines(draw_labels=True)
             ax.set_extent(extent)
             
@@ -191,7 +197,8 @@ for view_key, view_conf in views.items():
         for fp in frame_paths:
             os.remove(fp)
 
+# --- Cleanup ---
 if os.path.exists("harmonie.nc"):
     os.remove("harmonie.nc")
 
-print("All maps + MP4 animations generated with custom colormaps")
+print("Baltic region maps + MP4 animations generated")
