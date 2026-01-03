@@ -5,53 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HARMONIE Baltic Region</title>
     <style>
-        body { 
-            font-family: 'Segoe UI', Arial, sans-serif; 
-            text-align: center; 
-            margin: 0;
-            padding: 0;
-            background: #f5f7fa; 
-            color: #333;
-            line-height: 1.6;
-        }
+        body { font-family: 'Segoe UI', Arial, sans-serif; text-align: center; margin: 0; padding: 0; background: #f5f7fa; color: #333; line-height: 1.6; }
         h1 { color: #2c3e50; margin: 40px 0 20px; }
         h2 { color: #34495e; margin: 30px 0 15px; }
-        img, video { 
-            max-width: 100%; 
-            height: auto; 
-            border: 1px solid #ddd; 
-            border-radius: 10px; 
-            box-shadow: 0 6px 12px rgba(0,0,0,0.1); 
-            margin: 25px 0; 
-        }
-        video { background: #000; }
-        .download-btn {
-            display: inline-block;
-            margin: 12px;
-            padding: 12px 28px;
-            background: #2980b9;
-            color: white;
-            text-decoration: none;
-            font-weight: 600;
-            border-radius: 6px;
-            transition: background 0.3s ease;
-        }
+        img { max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 10px; box-shadow: 0 6px 12px rgba(0,0,0,0.1); margin: 25px 0; }
+        .download-btn { display: inline-block; margin: 12px; padding: 12px 28px; background: #2980b9; color: white; text-decoration: none; font-weight: 600; border-radius: 6px; transition: background 0.3s ease; }
         .download-btn:hover { background: #3498db; }
         .section { margin: 50px 0; padding: 0 20px; }
-        select { 
-            padding: 12px 16px; 
-            font-size: 1.1em; 
-            margin: 20px; 
-            border-radius: 8px; 
-            background: white;
-            border: 1px solid #ccc;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-        }
-        .footer { 
-            margin: 80px 0 40px; 
-            color: #7f8c8d; 
-            font-size: 0.95em; 
-        }
+        select, input[type=range] { padding: 12px 16px; font-size: 1.1em; margin: 20px; border-radius: 8px; background: white; border: 1px solid #ccc; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+        #frame-time { font-size: 1.2em; font-weight: bold; margin: 10px; }
+        .footer { margin: 80px 0 40px; color: #7f8c8d; font-size: 0.95em; }
     </style>
 </head>
 <body>
@@ -78,15 +41,11 @@
     </div>
 
     <div class="section">
-        <h2>Forecast Animation</h2>
-        <video id="anim-video" controls autoplay loop muted playsinline>
-            <source src="temperature_animation.mp4" type="video/mp4">
-            Your browser does not support the video tag.
-        </video>
+        <h2>Forecast (Slider)</h2>
+        <img id="forecast-img" src="temperature_frame_000.png" alt="Forecast Frame">
         <br>
-        <a id="download-anim" href="temperature_animation.mp4" download="HARMONIE_temperature_forecast_baltic.mp4" class="download-btn">
-            Download Animation (MP4)
-        </a>
+        <input type="range" id="frame-slider" min="0" max="29" value="0" style="width:80%;">
+        <div id="frame-time">Valid: Loading...</div>
     </div>
 
     <div class="footer">
@@ -98,34 +57,53 @@
         const paramSelect = document.getElementById('param-select');
         const analysisMap = document.getElementById('analysis-map');
         const downloadAnalysis = document.getElementById('download-analysis');
-        const animVideo = document.getElementById('anim-video');
-        const downloadAnim = document.getElementById('download-anim');
+        const forecastImg = document.getElementById('forecast-img');
+        const frameSlider = document.getElementById('frame-slider');
+        const frameTime = document.getElementById('frame-time');
 
         const baseFiles = {
             'temperature': 'temperature',
             'dewpoint': 'dewpoint',
             'pressure': 'pressure',
             'cape': 'cape',
-            'windgust': 'windgust'
-            'precipitation': 'precipitation',
+            'windgust': 'windgust',
+            'precipitation': 'precipitation'
         };
+
+        // Approximate times (adjust if your step changes)
+        const startHour = 0;  // First frame is +0h
+        const frames = 30;  // Adjust to your actual number
+        const times = [];
+        for (let i = 0; i < frames; i++) {
+            let hour = startHour + i;
+            if (i >= 16) hour += (i - 16) * 2;  // After +48h, every 3h → adjust if needed
+            const date = new Date();
+            date.setHours(date.getHours() + hour);
+            times.push(date.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' EET');
+        }
 
         function updateAll() {
             const param = paramSelect.value;
             const base = baseFiles[param];
-            const ts = new Date().getTime();
+            const ts = Date.now();
 
             analysisMap.src = `${base}.png?ts=${ts}`;
             downloadAnalysis.href = `${base}.png`;
             downloadAnalysis.download = `HARMONIE_${param}_baltic.png`;
 
-            animVideo.querySelector('source').src = `${base}_animation.mp4?ts=${ts}`;
-            animVideo.load();
-            downloadAnim.href = `${base}_animation.mp4`;
-            downloadAnim.download = `HARMONIE_${param}_forecast_baltic.mp4`;
+            updateFrame();
+        }
+
+        function updateFrame() {
+            const param = paramSelect.value;
+            const base = baseFiles[param];
+            const frame = frameSlider.value.padStart(3, '0');
+            forecastImg.src = `${base}_frame_${frame}.png?ts=${Date.now()}`;
+            frameTime.textContent = `Valid: ${times[frameSlider.value] || 'Loading...'}`;
         }
 
         paramSelect.addEventListener('change', updateAll);
+        frameSlider.addEventListener('input', updateFrame);
         window.onload = updateAll;
     </script>
 </body>
