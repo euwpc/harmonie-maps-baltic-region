@@ -3,7 +3,7 @@ import xml.etree.ElementTree as ET
 import xarray as xr
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
-import cartopy.feature as cfeature  # Added for country borders
+import cartopy.feature as cfeature
 from matplotlib.colors import ListedColormap, Normalize
 import matplotlib
 import datetime
@@ -71,8 +71,10 @@ temp_cmap, temp_norm = parse_qml_colormap("temperature_color_table_high.qml", vm
 cape_cmap, cape_norm = parse_qml_colormap("cape_color_table.qml", vmin=0, vmax=5000)
 pressure_cmap, pressure_norm = parse_qml_colormap("pressure_color_table.qml", vmin=870, vmax=1070)
 windgust_cmap, windgust_norm = parse_qml_colormap("wind_gust_color_table.qml", vmin=0, vmax=50)
+
+# Dewpoint uses same colormap and range as temperature
 dewpoint_cmap = temp_cmap
-dewpoint_norm = Normalize(vmin=-40, vmax=30)
+dewpoint_norm = Normalize(vmin=-40, vmax=50)  # Same as temperature
 
 # --- Step 5: Helper ---
 def get_analysis(var):
@@ -84,14 +86,14 @@ def get_analysis(var):
 
 # --- Step 6: Only Baltic Region view ---
 views = {
-    'baltic': {'extent': [20, 30, 54, 61], 'suffix': ''}  # Expanded Baltic region
+    'baltic': {'extent': [20, 30, 54, 61], 'suffix': ''}  # lon_min, lon_max, lat_min, lat_max
 }
 
 variables = {
     'temperature': {'var': temp_c, 'cmap': temp_cmap, 'norm': temp_norm, 'unit': '°C', 'title': '2m Temperature (°C)', 
                     'levels': [-40, -38, -36, -34, -32, -30, -28, -26, -24, -22, -20, -18, -16, -14, -12, -10, -8, -6, -4, -2, 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 42, 44, 46, 48, 50]},
     'dewpoint':    {'var': dewpoint_c, 'cmap': dewpoint_cmap, 'norm': dewpoint_norm, 'unit': '°C', 'title': '2m Dew Point (°C)', 
-                    'levels': [-40, -35, -30, -25, -20, -15, -10, -5, 0, 5, 10, 15, 20, 25, 30]},
+                    'levels': [-40, -35, -30, -25, -20, -15, -10, -5, 0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50]},
     'pressure':    {'var': pressure_hpa, 'cmap': pressure_cmap, 'norm': pressure_norm, 'unit': 'hPa', 'title': 'MSLP (hPa)', 
                     'levels': [890, 900, 910, 915, 920, 925, 929, 933, 938, 942, 946, 950, 954, 958, 962, 965, 968, 972, 974, 976, 978, 980, 982, 984, 986, 988, 990, 992, 994, 996, 998, 1000, 1002, 1004, 1006, 1008, 1010, 1012, 1014, 1016, 1018, 1020, 1022, 1024, 1026, 1028, 1030, 1032, 1034, 1036, 1038, 1040, 1042, 1044, 1046, 1048, 1050, 1052, 1054, 1056, 1058, 1060, 1062, 1064]},
     'cape':        {'var': cape, 'cmap': cape_cmap, 'norm': cape_norm, 'unit': 'J/kg', 'title': 'CAPE (J/kg)', 
@@ -109,8 +111,9 @@ for view_key, view_conf in views.items():
     for var_key, conf in variables.items():
         data = get_analysis(conf['var'])
         
+        # Correct crop for min/max (lat slice: low to high)
         try:
-            data_cropped = data.sel(lon=slice(lon_min, lon_max), lat=slice(lat_max, lat_min), method='nearest')
+            data_cropped = data.sel(lon=slice(lon_min, lon_max), lat=slice(lat_min, lat_max), method='nearest')
             min_val = float(data_cropped.min(skipna=True))
             max_val = float(data_cropped.max(skipna=True))
         except:
@@ -130,7 +133,7 @@ for view_key, view_conf in views.items():
             ax.clabel(cl, inline=True, fontsize=8, fmt="%d")
         
         ax.coastlines(resolution='10m')
-        ax.add_feature(cfeature.BORDERS, linestyle=':', edgecolor='gray', alpha=0.6)  # Country borders
+        ax.add_feature(cfeature.BORDERS, linestyle='-', edgecolor='black', linewidth=1.2, alpha=0.9)  # More visible borders
         ax.gridlines(draw_labels=True)
         ax.set_extent(extent)
         
@@ -155,8 +158,9 @@ for view_key, view_conf in views.items():
             slice_data = conf['var'].isel(**{time_dim: i})
             hour_offset = i
 
+            # Correct crop for per-frame min/max
             try:
-                slice_cropped = slice_data.sel(lon=slice(lon_min, lon_max), lat=slice(lat_max, lat_min), method='nearest')
+                slice_cropped = slice_data.sel(lon=slice(lon_min, lon_max), lat=slice(lat_min, lat_max), method='nearest')
                 slice_min = float(slice_cropped.min(skipna=True))
                 slice_max = float(slice_cropped.max(skipna=True))
             except:
@@ -173,7 +177,7 @@ for view_key, view_conf in views.items():
                 ax.clabel(cl, inline=True, fontsize=8, fmt="%d")
 
             ax.coastlines(resolution='10m')
-            ax.add_feature(cfeature.BORDERS, linestyle=':', edgecolor='gray', alpha=0.6)
+            ax.add_feature(cfeature.BORDERS, linestyle='-', edgecolor='black', linewidth=1.2, alpha=0.9)  # More visible borders
             ax.gridlines(draw_labels=True)
             ax.set_extent(extent)
             
