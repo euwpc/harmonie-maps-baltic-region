@@ -71,7 +71,7 @@ temp_cmap, temp_norm = parse_qml_colormap("temperature_color_table_high.qml", vm
 cape_cmap, cape_norm = parse_qml_colormap("cape_color_table.qml", vmin=0, vmax=5000)
 pressure_cmap, pressure_norm = parse_qml_colormap("pressure_color_table.qml", vmin=870, vmax=1070)
 windgust_cmap, windgust_norm = parse_qml_colormap("wind_gust_color_table.qml", vmin=0, vmax=50)
-precip_cmap, precip_norm = parse_qml_colormap("precipitation_color_table.qml", vmin=0, vmax=30)
+precip_cmap, precip_norm = parse_qml_colormap("precipitation_color_table.qml", vmin=0, vmax=125)
 
 # Dewpoint uses same colormap and range as temperature
 dewpoint_cmap = temp_cmap
@@ -102,7 +102,7 @@ variables = {
     'windgust':    {'var': windgust_ms, 'cmap': windgust_cmap, 'norm': windgust_norm, 'unit': 'm/s', 'title': 'Wind Gust (m/s)', 
                     'levels': [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50]},
     'precipitation': {'var': precip1h_mm, 'cmap': precip_cmap, 'norm': precip_norm, 'unit': 'mm', 'title': '1h Precipitation (mm)', 
-                      'levels': [0, 0.2, 0.5, 1, 2, 3, 5, 7, 10, 15, 20, 25, 30]},
+                      'levels': [0, 0.1, 0.2, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 20, 24, 30, 40, 50, 60, 80, 100, 125]},
 }
 
 # --- Generate Baltic region only ---
