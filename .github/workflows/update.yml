@@ -2,7 +2,7 @@ name: Update HARMONIE Map
 
 on:
   schedule:
-    - cron: '50 9 * * *'   # 11:50 EET
+    - cron: '0 10 * * *'   # 11:50 EET
     - cron: '50 12 * * *'  # 14:50 EET
     - cron: '45 15 * * *'  # 17:45 EET
     - cron: '55 18 * * *'  # 20:50 EET
