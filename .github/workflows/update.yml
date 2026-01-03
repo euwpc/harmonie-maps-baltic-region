@@ -2,14 +2,14 @@ name: Update HARMONIE Map
 
 on:
   schedule:
-    - cron: '50 9 * * *'
-    - cron: '50 12 * * *'
-    - cron: '45 15 * * *'
-    - cron: '55 18 * * *'
-    - cron: '55 21 * * *'
-    - cron: '05 00 * * *'
-    - cron: '50 3 * * *'
-    - cron: '55 6 * * *'
+    - cron: '50 9 * * *'   # 11:50 EET
+    - cron: '50 12 * * *'  # 14:50 EET
+    - cron: '45 15 * * *'  # 17:45 EET
+    - cron: '55 18 * * *'  # 20:50 EET
+    - cron: '55 21 * * *'  # 23:55 EET
+    - cron: '05 00 * * *'  # 02:05 EET (next day)
+    - cron: '50 3 * * *'   # 05:50 EET
+    - cron: '55 6 * * *'   # 08:55 EET
   workflow_dispatch:
 
 jobs:
