@@ -8,6 +8,7 @@ from matplotlib.colors import ListedColormap, Normalize
 import matplotlib
 import datetime
 import os
+import imageio
 import pandas as pd
 
 matplotlib.use('Agg')
@@ -63,7 +64,7 @@ dewpoint_c = ds['dew_point_temperature_10'] - 273.15
 pressure_hpa = ds['air_pressure_at_sea_level_1'] / 100
 cape = ds['atmosphere_specific_convective_available_potential_energy_59']
 windgust_ms = ds['wind_speed_of_gust_417']
-precip1h_mm = ds['precipitation_amount_353']  # Fixed variable name
+precip1h_mm = ds['precipitation_amount_353']  # Correct variable name
 
 # --- Step 4: Load custom colormaps ---
 temp_cmap, temp_norm = parse_qml_colormap("temperature_color_table_high.qml", vmin=-40, vmax=50)
@@ -72,6 +73,7 @@ pressure_cmap, pressure_norm = parse_qml_colormap("pressure_color_table.qml", vm
 windgust_cmap, windgust_norm = parse_qml_colormap("wind_gust_color_table.qml", vmin=0, vmax=50)
 precip_cmap, precip_norm = parse_qml_colormap("precipitation_color_table.qml", vmin=0, vmax=30)
 
+# Dewpoint uses same colormap and range as temperature
 dewpoint_cmap = temp_cmap
 dewpoint_norm = Normalize(vmin=-40, vmax=50)
 
@@ -142,14 +144,12 @@ for view_key, view_conf in views.items():
         plt.savefig(f"{var_key}{suffix}.png", dpi=180, bbox_inches='tight')
         plt.close()
 
-        # Forecast frames for slider (120 DPI, individual PNGs)
+        # Animation — 120 DPI, fixed size
         frame_paths = []
-        frame_times = []  # To save valid times for JS
         time_dim = 'time' if 'time' in conf['var'].dims else 'time_h'
         time_values = ds[time_dim].values
         
-        # Fixed size for 120 DPI → 1228×922 pixels (close to divisible by 16)
-        fig_width = 10.24
+        fig_width = 10.24  # 1280px at 125 DPI → close to divisible by 16
         fig_height = 7.68
         
         for i in range(len(time_values)):
@@ -186,20 +186,25 @@ for view_key, view_conf in views.items():
             valid_dt = pd.to_datetime(time_values[i])
             valid_dt_eet = valid_dt + pd.Timedelta(hours=2)
             valid_str = valid_dt_eet.strftime("%a %d %b %H:%M EET")
-            frame_times.append(valid_str)
             
             plt.title(f"HARMONIE {conf['title']}\nValid: {valid_str} | +{hour_offset}h from run {run_time_str}\nMin: {slice_min:.1f} {conf['unit']} | Max: {slice_max:.1f} {conf['unit']}")
 
-            frame_path = f"{var_key}{suffix}_frame_{i:03d}.png"
+            frame_path = f"frame_{var_key}{suffix}_{i:03d}.png"
             plt.savefig(frame_path, dpi=120, facecolor='white', pad_inches=0.3)
             plt.close()
             frame_paths.append(frame_path)
 
-        # Save frame times as JSON for JS (optional, or hardcode in HTML)
-        # For simplicity, we'll handle times in JS based on step
+        video_path = f"{var_key}{suffix}_animation.mp4"
+        with imageio.get_writer(video_path, fps=2, codec='libx264', pixelformat='yuv420p', quality=8, macro_block_size=16) as writer:
+            for fp in frame_paths:
+                img = imageio.imread(fp)
+                writer.append_data(img)
+
+        for fp in frame_paths:
+            os.remove(fp)
 
 # --- Cleanup ---
 if os.path.exists("harmonie.nc"):
     os.remove("harmonie.nc")
 
-print("Baltic region maps + forecast frames generated (slider ready)")
+print("Baltic region maps + MP4 animations generated (including 1h Precipitation)")
