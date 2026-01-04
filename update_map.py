@@ -125,7 +125,7 @@ for view_key, view_conf in views.items():
 
         # Min/max only in Baltic region (safe fallback)
         try:
-            cropped_data = data.sel(lon=slice(lon_min, lon_max), lat=slice(lat_max, lat_min))
+            cropped_data = data.sel(lon=slice(lon_min, lon_max), lat=slice(lat_min, lat_max))  # Fixed: lat_min to lat_max
             if cropped_data.size == 0:
                 raise ValueError("Empty selection")
             min_val = float(cropped_data.min(skipna=True))
@@ -136,7 +136,7 @@ for view_key, view_conf in views.items():
 
         fig = plt.figure(figsize=(10, 8))
         ax = plt.axes(projection=ccrs.PlateCarree())
-        # Plot full data (not cropped) — ensures data exists for plotting
+        # Plot full data — ensures data exists for plotting
         data.plot.contourf(
             ax=ax,
             transform=ccrs.PlateCarree(),
@@ -186,7 +186,7 @@ for view_key, view_conf in views.items():
 
             # Min/max only in Baltic region
             try:
-                slice_cropped = slice_data.sel(lon=slice(lon_min, lon_max), lat=slice(lat_max, lat_min))
+                slice_cropped = slice_data.sel(lon=slice(lon_min, lon_max), lat=slice(lat_min, lat_max))  # Fixed: lat_min to lat_max
                 if slice_cropped.size == 0:
                     raise ValueError("Empty selection")
                 slice_min = float(slice_cropped.min(skipna=True))
@@ -195,7 +195,7 @@ for view_key, view_conf in views.items():
                 slice_min = float(slice_data.min(skipna=True))
                 slice_max = float(slice_data.max(skipna=True))
 
-            # Plot full slice_data (not cropped) to avoid "No numeric data to plot"
+            # Plot full slice_data — avoids "No numeric data to plot"
             slice_data.plot.contourf(
                 ax=ax,
                 transform=ccrs.PlateCarree(),
