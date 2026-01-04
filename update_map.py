@@ -123,10 +123,11 @@ for view_key, view_conf in views.items():
     for var_key, conf in variables.items():
         data = get_analysis(conf['var'])
 
+        # Min/max only in Baltic region (safe fallback)
         try:
             cropped_data = data.sel(lon=slice(lon_min, lon_max), lat=slice(lat_max, lat_min))
             if cropped_data.size == 0:
-                raise ValueError
+                raise ValueError("Empty selection")
             min_val = float(cropped_data.min(skipna=True))
             max_val = float(cropped_data.max(skipna=True))
         except:
@@ -135,25 +136,26 @@ for view_key, view_conf in views.items():
 
         fig = plt.figure(figsize=(10, 8))
         ax = plt.axes(projection=ccrs.PlateCarree())
-        cropped_data.plot.contourf(
+        # Plot full data (not cropped) — ensures data exists for plotting
+        data.plot.contourf(
             ax=ax,
             transform=ccrs.PlateCarree(),
             cmap=conf['cmap'],
             norm=conf['norm'],
-            levels=conf['levels'],
+            levels=100,
             cbar_kwargs={'label': conf['unit'], 'shrink': 0.8, 'pad': 0.05}
         )
 
         if var_key == 'windgust':
-            cl = cropped_data.plot.contour(ax=ax, transform=ccrs.PlateCarree(),
-                                           colors='white', linewidths=0.35,
-                                           levels=conf['levels'], alpha=0.7)
+            cl = data.plot.contour(ax=ax, transform=ccrs.PlateCarree(),
+                                   colors='white', linewidths=0.35,
+                                   levels=conf['levels'], alpha=0.7)
             ax.clabel(cl, inline=True, fontsize=6, fmt="%d",
                       colors='black', inline_spacing=3)
         else:
-            cl = cropped_data.plot.contour(ax=ax, transform=ccrs.PlateCarree(),
-                                           colors='black', linewidths=0.5,
-                                           levels=conf['levels'])
+            cl = data.plot.contour(ax=ax, transform=ccrs.PlateCarree(),
+                                   colors='black', linewidths=0.5,
+                                   levels=conf['levels'])
             ax.clabel(cl, inline=True, fontsize=8, fmt="%d")
 
         ax.coastlines(resolution='10m', linewidth=1.2)
@@ -169,6 +171,7 @@ for view_key, view_conf in views.items():
         plt.savefig(f"{var_key}{suffix}.png", dpi=180, bbox_inches='tight', facecolor='#f8f9fa')
         plt.close()
 
+        # Animation frames
         frame_paths = []
         time_dim = 'time' if 'time' in conf['var'].dims else 'time_h'
         time_values = ds[time_dim].values
@@ -181,34 +184,36 @@ for view_key, view_conf in views.items():
             ax = plt.axes(projection=ccrs.PlateCarree())
             slice_data = conf['var'].isel(**{time_dim: i})
 
+            # Min/max only in Baltic region
             try:
                 slice_cropped = slice_data.sel(lon=slice(lon_min, lon_max), lat=slice(lat_max, lat_min))
                 if slice_cropped.size == 0:
-                    raise ValueError
+                    raise ValueError("Empty selection")
                 slice_min = float(slice_cropped.min(skipna=True))
                 slice_max = float(slice_cropped.max(skipna=True))
             except:
                 slice_min = float(slice_data.min(skipna=True))
                 slice_max = float(slice_data.max(skipna=True))
 
-            slice_cropped.plot.contourf(
+            # Plot full slice_data (not cropped) to avoid "No numeric data to plot"
+            slice_data.plot.contourf(
                 ax=ax,
                 transform=ccrs.PlateCarree(),
                 cmap=conf['cmap'],
                 norm=conf['norm'],
-                levels=conf['levels']
+                levels=100
             )
 
             if var_key == 'windgust':
-                cl = slice_cropped.plot.contour(ax=ax, transform=ccrs.PlateCarree(),
-                                                colors='white', linewidths=0.35,
-                                                levels=conf['levels'], alpha=0.7)
+                cl = slice_data.plot.contour(ax=ax, transform=ccrs.PlateCarree(),
+                                             colors='white', linewidths=0.35,
+                                             levels=conf['levels'], alpha=0.7)
                 ax.clabel(cl, inline=True, fontsize=6, fmt="%d",
                           colors='black', inline_spacing=3)
             else:
-                cl = slice_cropped.plot.contour(ax=ax, transform=ccrs.PlateCarree(),
-                                                colors='black', linewidths=0.5,
-                                                levels=conf['levels'])
+                cl = slice_data.plot.contour(ax=ax, transform=ccrs.PlateCarree(),
+                                             colors='black', linewidths=0.5,
+                                             levels=conf['levels'])
                 ax.clabel(cl, inline=True, fontsize=8, fmt="%d")
 
             ax.coastlines(resolution='10m', linewidth=1.2)
@@ -242,3 +247,5 @@ for view_key, view_conf in views.items():
 
 if os.path.exists("harmonie.nc"):
     os.remove("harmonie.nc")
+
+print("Baltic region maps + MP4 animations generated")
