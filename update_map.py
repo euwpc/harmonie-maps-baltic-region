@@ -174,8 +174,8 @@ for view_key, view_conf in views.items():
         time_values = ds[time_dim].values
 
         # Size that gives exactly 1232×928 pixels at 120 DPI (divisible by 16)
-        fig_width = 10.2667   # 1232 / 120
-        fig_height = 7.7333   # 928 / 120
+        fig_width = 10.2666666667   # 1232 / 120
+        fig_height = 7.7333333333   # 928 / 120
 
         for i in range(len(time_values)):
             if i >= 48 and (i - 48) % 3 != 0:
