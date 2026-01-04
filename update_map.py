@@ -8,12 +8,16 @@ from matplotlib.colors import ListedColormap, BoundaryNorm, Normalize
 import matplotlib
 import datetime
 import os
-import imageio
+import imageio.v2 as imageio  # Fixed deprecation warning
 import pandas as pd
+import warnings
 
 matplotlib.use('Agg')
 
-# --- Helper to parse QML color ramp (FIXED) ---
+# Suppress cartopy download warnings (they're harmless on GitHub runners)
+warnings.filterwarnings("ignore", category=UserWarning, module="cartopy")
+
+# --- Helper to parse QML color ramp ---
 def parse_qml_colormap(qml_file, vmin, vmax):
     tree = ET.parse(qml_file)
     root = tree.getroot()
@@ -111,7 +115,7 @@ variables = {
     'windgust':    {'var': windgust_ms, 'cmap': windgust_cmap, 'norm': windgust_norm, 'unit': 'm/s', 'title': 'Wind Gust (m/s)',
                     'levels': [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50]},
     'precipitation': {'var': precip1h_mm, 'cmap': precip_cmap, 'norm': precip_norm, 'unit': 'mm', 'title': '1h Precipitation (mm)',
-                      'levels': [0, 0.1, 0.2, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 20, 24, 30]},
+                      'levels': [0, 0.1, 0.2, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 20, 24, 30, 40, 50, 60, 80, 100, 125]},
 }
 
 # --- Generate Baltic region only ---
@@ -123,11 +127,11 @@ for view_key, view_conf in views.items():
     for var_key, conf in variables.items():
         data = get_analysis(conf['var'])
 
-        # Min/max only in Baltic region (safe fallback)
+        # Min/max only in Baltic region
         try:
-            cropped_data = data.sel(lon=slice(lon_min, lon_max), lat=slice(lat_min, lat_max))  # Fixed: lat_min to lat_max
+            cropped_data = data.sel(lon=slice(lon_min, lon_max), lat=slice(lat_min, lat_max))
             if cropped_data.size == 0:
-                raise ValueError("Empty selection")
+                raise ValueError
             min_val = float(cropped_data.min(skipna=True))
             max_val = float(cropped_data.max(skipna=True))
         except:
@@ -136,7 +140,6 @@ for view_key, view_conf in views.items():
 
         fig = plt.figure(figsize=(10, 8))
         ax = plt.axes(projection=ccrs.PlateCarree())
-        # Plot full data — ensures data exists for plotting
         data.plot.contourf(
             ax=ax,
             transform=ccrs.PlateCarree(),
@@ -146,17 +149,11 @@ for view_key, view_conf in views.items():
             cbar_kwargs={'label': conf['unit'], 'shrink': 0.8, 'pad': 0.05}
         )
 
-        if var_key == 'windgust':
+        # Only MSLP gets contours and labels
+        if var_key == 'pressure':
             cl = data.plot.contour(ax=ax, transform=ccrs.PlateCarree(),
-                                   colors='white', linewidths=0.35,
-                                   levels=conf['levels'], alpha=0.7)
-            ax.clabel(cl, inline=True, fontsize=6, fmt="%d",
-                      colors='black', inline_spacing=3)
-        else:
-            cl = data.plot.contour(ax=ax, transform=ccrs.PlateCarree(),
-                                   colors='black', linewidths=0.5,
-                                   levels=conf['levels'])
-            ax.clabel(cl, inline=True, fontsize=8, fmt="%d")
+                                   colors='black', linewidths=0.8, levels=conf['levels'])
+            ax.clabel(cl, inline=True, fontsize=9, fmt="%d", inline_spacing=8, use_clabeltext=True)
 
         ax.coastlines(resolution='10m', linewidth=1.2)
         ax.add_feature(cfeature.BORDERS, linestyle='-', edgecolor='black', linewidth=1.2, alpha=0.9)
@@ -171,31 +168,34 @@ for view_key, view_conf in views.items():
         plt.savefig(f"{var_key}{suffix}.png", dpi=180, bbox_inches='tight', facecolor='#f8f9fa')
         plt.close()
 
-        # Animation frames
+        # Animation frames — 120 DPI, fixed size divisible by 16
         frame_paths = []
         time_dim = 'time' if 'time' in conf['var'].dims else 'time_h'
         time_values = ds[time_dim].values
+
+        # Size that gives exactly 1232×928 pixels at 120 DPI (divisible by 16)
+        fig_width = 10.2667   # 1232 / 120
+        fig_height = 7.7333   # 928 / 120
 
         for i in range(len(time_values)):
             if i >= 48 and (i - 48) % 3 != 0:
                 continue
 
-            fig = plt.figure(figsize=(10.24, 7.68), dpi=120)
+            fig = plt.figure(figsize=(fig_width, fig_height), dpi=120)
             ax = plt.axes(projection=ccrs.PlateCarree())
             slice_data = conf['var'].isel(**{time_dim: i})
 
             # Min/max only in Baltic region
             try:
-                slice_cropped = slice_data.sel(lon=slice(lon_min, lon_max), lat=slice(lat_min, lat_max))  # Fixed: lat_min to lat_max
+                slice_cropped = slice_data.sel(lon=slice(lon_min, lon_max), lat=slice(lat_min, lat_max))
                 if slice_cropped.size == 0:
-                    raise ValueError("Empty selection")
+                    raise ValueError
                 slice_min = float(slice_cropped.min(skipna=True))
                 slice_max = float(slice_cropped.max(skipna=True))
             except:
                 slice_min = float(slice_data.min(skipna=True))
                 slice_max = float(slice_data.max(skipna=True))
 
-            # Plot full slice_data — avoids "No numeric data to plot"
             slice_data.plot.contourf(
                 ax=ax,
                 transform=ccrs.PlateCarree(),
@@ -204,17 +204,11 @@ for view_key, view_conf in views.items():
                 levels=100
             )
 
-            if var_key == 'windgust':
+            # Only pressure gets smooth isobars
+            if var_key == 'pressure':
                 cl = slice_data.plot.contour(ax=ax, transform=ccrs.PlateCarree(),
-                                             colors='white', linewidths=0.35,
-                                             levels=conf['levels'], alpha=0.7)
-                ax.clabel(cl, inline=True, fontsize=6, fmt="%d",
-                          colors='black', inline_spacing=3)
-            else:
-                cl = slice_data.plot.contour(ax=ax, transform=ccrs.PlateCarree(),
-                                             colors='black', linewidths=0.5,
-                                             levels=conf['levels'])
-                ax.clabel(cl, inline=True, fontsize=8, fmt="%d")
+                                             colors='black', linewidths=0.8, levels=conf['levels'])
+                ax.clabel(cl, inline=True, fontsize=9, fmt="%d", inline_spacing=8, use_clabeltext=True)
 
             ax.coastlines(resolution='10m', linewidth=1.2)
             ax.add_feature(cfeature.BORDERS, linestyle='-', edgecolor='black', linewidth=1.2, alpha=0.9)
