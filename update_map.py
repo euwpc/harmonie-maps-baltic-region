@@ -165,7 +165,7 @@ for view_key, view_conf in views.items():
             f"Min: {min_val:.1f} {conf['unit']} | Max: {max_val:.1f} {conf['unit']}",
             fontsize=14, pad=20
         )
-        plt.savefig(f"{var_key}{suffix}.png", dpi=180, bbox_inches='tight', facecolor='#f8f9fa')
+        plt.savefig(f"{var_key}{suffix}.png", dpi=150, bbox_inches='tight', facecolor='#f8f9fa')
         plt.close()
 
         # Animation frames — 120 DPI, fixed size divisible by 16
@@ -181,7 +181,7 @@ for view_key, view_conf in views.items():
             if i >= 48 and (i - 48) % 3 != 0:
                 continue
 
-            fig = plt.figure(figsize=(fig_width, fig_height), dpi=120)
+            fig = plt.figure(figsize=(fig_width, fig_height), dpi=144)
             ax = plt.axes(projection=ccrs.PlateCarree())
             slice_data = conf['var'].isel(**{time_dim: i})
 
@@ -225,7 +225,7 @@ for view_key, view_conf in views.items():
             )
 
             frame_path = f"frame_{var_key}{suffix}_{i:03d}.png"
-            plt.savefig(frame_path, dpi=120, facecolor='white', pad_inches=0.3)
+            plt.savefig(frame_path, dpi=144, facecolor='white', pad_inches=0.3)
             plt.close()
             frame_paths.append(frame_path)
 
