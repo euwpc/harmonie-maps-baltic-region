@@ -8,13 +8,13 @@ from matplotlib.colors import ListedColormap, BoundaryNorm, Normalize
 import matplotlib
 import datetime
 import os
-import imageio.v2 as imageio  # Fixed deprecation warning
+import imageio.v2 as imageio
 import pandas as pd
 import warnings
 
 matplotlib.use('Agg')
 
-# Suppress cartopy download warnings (they're harmless on GitHub runners)
+# Suppress cartopy download warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="cartopy")
 
 # --- Helper to parse QML color ramp ---
@@ -115,7 +115,7 @@ variables = {
     'windgust':    {'var': windgust_ms, 'cmap': windgust_cmap, 'norm': windgust_norm, 'unit': 'm/s', 'title': 'Wind Gust (m/s)',
                     'levels': [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50]},
     'precipitation': {'var': precip1h_mm, 'cmap': precip_cmap, 'norm': precip_norm, 'unit': 'mm', 'title': '1h Precipitation (mm)',
-                      'levels': [0, 0.1, 0.2, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 20, 24, 30, 40, 50, 60, 80, 100, 125]},
+                      'levels': [0, 0.1, 0.2, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 20, 24, 30]},
 }
 
 # --- Generate Baltic region only ---
@@ -168,14 +168,14 @@ for view_key, view_conf in views.items():
         plt.savefig(f"{var_key}{suffix}.png", dpi=170, bbox_inches='tight', facecolor='#f8f9fa')
         plt.close()
 
-        # Animation frames — 120 DPI, fixed size divisible by 16
+        # Animation frames — 112 DPI, exact divisible by 16 pixels
         frame_paths = []
         time_dim = 'time' if 'time' in conf['var'].dims else 'time_h'
         time_values = ds[time_dim].values
 
-        # Size that gives exactly 1232×928 pixels at 120 DPI (divisible by 16)
-        fig_width = 10.2666666667   # 1232 / 120
-        fig_height = 7.7333333333   # 928 / 120
+        # Exact size: 1152 × 880 pixels at 112 DPI (both divisible by 16)
+        fig_width = 1152 / 112   # = 10.285714...
+        fig_height = 880 / 112   # = 7.857142...
 
         for i in range(len(time_values)):
             if i >= 48 and (i - 48) % 3 != 0:
