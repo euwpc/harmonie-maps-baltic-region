@@ -126,7 +126,7 @@ for view_key, view_conf in views.items():
 
     for var_key, conf in variables.items():
         
-      data = get_analysis(conf['var'])
+    data = get_analysis(conf['var'])
 
 
         # Min/max only in Baltic region
