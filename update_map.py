@@ -201,7 +201,7 @@ for view_key, view_conf in views.items():
                 transform=ccrs.PlateCarree(),
                 cmap=conf['cmap'],
                 norm=conf['norm'],
-                levels=100
+                levels=conf['levels']
             )
 
             # Only pressure gets smooth isobars
