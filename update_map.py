@@ -125,10 +125,8 @@ for view_key, view_conf in views.items():
     lon_min, lon_max, lat_min, lat_max = extent
 
     for var_key, conf in variables.items():
-        if var_key == 'precipitation':
-    data = conf['var'].isel(time=6)   # first meaningful 1h precip
-else:
-    data = get_analysis(conf['var'])
+        
+      data = get_analysis(conf['var'])
 
 
         # Min/max only in Baltic region
