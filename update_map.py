@@ -125,7 +125,11 @@ for view_key, view_conf in views.items():
     lon_min, lon_max, lat_min, lat_max = extent
 
     for var_key, conf in variables.items():
-        data = get_analysis(conf['var'])
+        if var_key == 'precipitation':
+    data = conf['var'].isel(time=6)   # first meaningful 1h precip
+else:
+    data = get_analysis(conf['var'])
+
 
         # Min/max only in Baltic region
         try:
@@ -145,7 +149,7 @@ for view_key, view_conf in views.items():
             transform=ccrs.PlateCarree(),
             cmap=conf['cmap'],
             norm=conf['norm'],
-            levels=100,
+            levels=conf['levels'],
             cbar_kwargs={'label': conf['unit'], 'shrink': 0.8, 'pad': 0.05}
         )
 
