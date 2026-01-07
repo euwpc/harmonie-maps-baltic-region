@@ -8,14 +8,13 @@ from matplotlib.colors import ListedColormap, BoundaryNorm, Normalize
 import matplotlib
 import datetime
 import os
-import time  # Added for retry delay
-import imageio.v2 as imageio
+import imageio.v2 as imageio  # Fixed deprecation warning
 import pandas as pd
 import warnings
 
 matplotlib.use('Agg')
 
-# Suppress cartopy download warnings
+# Suppress cartopy download warnings (they're harmless on GitHub runners)
 warnings.filterwarnings("ignore", category=UserWarning, module="cartopy")
 
 # --- Helper to parse QML color ramp ---
@@ -79,7 +78,7 @@ dewpoint_c = ds['dew_point_temperature_10'] - 273.15
 pressure_hpa = ds['air_pressure_at_sea_level_1'] / 100
 cape = ds['atmosphere_specific_convective_available_potential_energy_59']
 windgust_ms = ds['wind_speed_of_gust_417']
-precip1h_mm = ds['precipitation_amount_353']
+precip1h_mm = ds['precipitation_amount_353'] * 3600
 
 # --- Step 4: Load custom colormaps ---
 temp_cmap, temp_norm = parse_qml_colormap("temperature_color_table_high.qml", vmin=-40, vmax=50)
@@ -116,7 +115,7 @@ variables = {
     'windgust':    {'var': windgust_ms, 'cmap': windgust_cmap, 'norm': windgust_norm, 'unit': 'm/s', 'title': 'Wind Gust (m/s)',
                     'levels': [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50]},
     'precipitation': {'var': precip1h_mm, 'cmap': precip_cmap, 'norm': precip_norm, 'unit': 'mm', 'title': '1h Precipitation (mm)',
-                      'levels': [0, 0.1, 0.2, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 20, 24, 30]},
+                      'levels': [0, 0.1, 0.2, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 20, 24, 30, 40, 50, 60, 80, 100, 125]},
 }
 
 # --- Generate Baltic region only ---
@@ -126,141 +125,119 @@ for view_key, view_conf in views.items():
     lon_min, lon_max, lat_min, lat_max = extent
 
     for var_key, conf in variables.items():
-        max_retries = 5
-        retry_delay = 10  # seconds
-        success = False
+        data = get_analysis(conf['var'])
 
-        for attempt in range(max_retries):
+        # Min/max only in Baltic region
+        try:
+            cropped_data = data.sel(lon=slice(lon_min, lon_max), lat=slice(lat_min, lat_max))
+            if cropped_data.size == 0:
+                raise ValueError
+            min_val = float(cropped_data.min(skipna=True))
+            max_val = float(cropped_data.max(skipna=True))
+        except:
+            min_val = float(data.min(skipna=True))
+            max_val = float(data.max(skipna=True))
+
+        fig = plt.figure(figsize=(10, 8))
+        ax = plt.axes(projection=ccrs.PlateCarree())
+        data.plot.contourf(
+            ax=ax,
+            transform=ccrs.PlateCarree(),
+            cmap=conf['cmap'],
+            norm=conf['norm'],
+            levels=100,
+            cbar_kwargs={'label': conf['unit'], 'shrink': 0.8, 'pad': 0.05}
+        )
+
+        # Only MSLP gets contours and labels
+        if var_key == 'pressure':
+            cl = data.plot.contour(ax=ax, transform=ccrs.PlateCarree(),
+                                   colors='black', linewidths=0.8, levels=conf['levels'])
+            ax.clabel(cl, inline=True, fontsize=9, fmt="%d", inline_spacing=8, use_clabeltext=True)
+
+        ax.coastlines(resolution='10m', linewidth=1.2)
+        ax.add_feature(cfeature.BORDERS, linestyle='-', edgecolor='black', linewidth=1.2, alpha=0.9)
+        ax.gridlines(draw_labels=True, linewidth=0.8, color='gray', alpha=0.5)
+        ax.set_extent(extent)
+
+        plt.title(
+            f"HARMONIE {conf['title']}\nModel run: {run_time_str} | Analysis\n"
+            f"Min: {min_val:.1f} {conf['unit']} | Max: {max_val:.1f} {conf['unit']}",
+            fontsize=14, pad=20
+        )
+        plt.savefig(f"{var_key}{suffix}.png", dpi=170, bbox_inches='tight', facecolor='#f8f9fa')
+        plt.close()
+
+        # Animation frames — 120 DPI, fixed size divisible by 16
+        frame_paths = []
+        time_dim = 'time' if 'time' in conf['var'].dims else 'time_h'
+        time_values = ds[time_dim].values
+
+        # Size that gives exactly 1232×928 pixels at 120 DPI (divisible by 16)
+        fig_width = 1152 / 112   # 1232 / 120
+        fig_height = 880 / 112   # 928 / 120
+
+        for i in range(len(time_values)):
+            if i >= 48 and (i - 48) % 3 != 0:
+                continue
+
+            fig = plt.figure(figsize=(fig_width, fig_height), dpi=112)
+            ax = plt.axes(projection=ccrs.PlateCarree())
+            slice_data = conf['var'].isel(**{time_dim: i})
+
+            # Min/max only in Baltic region
             try:
-                print(f"Processing {var_key} (attempt {attempt + 1}/{max_retries})...")
+                slice_cropped = slice_data.sel(lon=slice(lon_min, lon_max), lat=slice(lat_min, lat_max))
+                if slice_cropped.size == 0:
+                    raise ValueError
+                slice_min = float(slice_cropped.min(skipna=True))
+                slice_max = float(slice_cropped.max(skipna=True))
+            except:
+                slice_min = float(slice_data.min(skipna=True))
+                slice_max = float(slice_data.max(skipna=True))
 
-                data = get_analysis(conf['var'])
+            slice_data.plot.contourf(
+                ax=ax,
+                transform=ccrs.PlateCarree(),
+                cmap=conf['cmap'],
+                norm=conf['norm'],
+                levels=100
+            )
 
-                # Min/max only in Baltic region
-                try:
-                    cropped_data = data.sel(lon=slice(lon_min, lon_max), lat=slice(lat_min, lat_max))
-                    if cropped_data.size == 0:
-                        raise ValueError
-                    min_val = float(cropped_data.min(skipna=True))
-                    max_val = float(cropped_data.max(skipna=True))
-                except:
-                    min_val = float(data.min(skipna=True))
-                    max_val = float(data.max(skipna=True))
+            # Only pressure gets smooth isobars
+            if var_key == 'pressure':
+                cl = slice_data.plot.contour(ax=ax, transform=ccrs.PlateCarree(),
+                                             colors='black', linewidths=0.8, levels=conf['levels'])
+                ax.clabel(cl, inline=True, fontsize=9, fmt="%d", inline_spacing=8, use_clabeltext=True)
 
-                # Static map
-                fig = plt.figure(figsize=(10, 8))
-                ax = plt.axes(projection=ccrs.PlateCarree())
-                data.plot.contourf(
-                    ax=ax,
-                    transform=ccrs.PlateCarree(),
-                    cmap=conf['cmap'],
-                    norm=conf['norm'],
-                    levels=conf['levels'],
-                    cbar_kwargs={'label': conf['unit'], 'shrink': 0.8, 'pad': 0.05}
-                )
+            ax.coastlines(resolution='10m', linewidth=1.2)
+            ax.add_feature(cfeature.BORDERS, linestyle='-', edgecolor='black', linewidth=1.2, alpha=0.9)
+            ax.gridlines(draw_labels=True, linewidth=0.8, color='gray', alpha=0.5)
+            ax.set_extent(extent)
 
-                if var_key == 'pressure':
-                    cl = data.plot.contour(ax=ax, transform=ccrs.PlateCarree(),
-                                           colors='black', linewidths=0.8, levels=conf['levels'])
-                    ax.clabel(cl, inline=True, fontsize=9, fmt="%d", inline_spacing=8, use_clabeltext=True)
+            valid_dt = pd.to_datetime(time_values[i]) + pd.Timedelta(hours=2)
+            valid_str = valid_dt.strftime("%a %d %b %H:%M EET")
 
-                ax.coastlines(resolution='10m', linewidth=1.2)
-                ax.add_feature(cfeature.BORDERS, linestyle='-', edgecolor='black', linewidth=1.2, alpha=0.9)
-                ax.gridlines(draw_labels=True, linewidth=0.8, color='gray', alpha=0.5)
-                ax.set_extent(extent)
+            plt.title(
+                f"HARMONIE {conf['title']}\nValid: {valid_str} | +{i}h from run {run_time_str}\n"
+                f"Min: {slice_min:.1f} {conf['unit']} | Max: {slice_max:.1f} {conf['unit']}",
+                fontsize=13, pad=15
+            )
 
-                plt.title(
-                    f"HARMONIE {conf['title']}\nModel run: {run_time_str} | Analysis\n"
-                    f"Min: {min_val:.1f} {conf['unit']} | Max: {max_val:.1f} {conf['unit']}",
-                    fontsize=14, pad=20
-                )
-                plt.savefig(f"{var_key}{suffix}.png", dpi=170, bbox_inches='tight', facecolor='#f8f9fa')
-                plt.close()
+            frame_path = f"frame_{var_key}{suffix}_{i:03d}.png"
+            plt.savefig(frame_path, dpi=112, facecolor='white', pad_inches=0.3)
+            plt.close()
+            frame_paths.append(frame_path)
 
-                # Animation frames
-                frame_paths = []
-                time_dim = 'time' if 'time' in conf['var'].dims else 'time_h'
-                time_values = ds[time_dim].values
+        video_path = f"{var_key}{suffix}_animation.mp4"
+        with imageio.get_writer(video_path, fps=2, codec='libx264',
+                                pixelformat='yuv420p', quality=8,
+                                macro_block_size=16) as writer:
+            for fp in frame_paths:
+                writer.append_data(imageio.imread(fp))
 
-                fig_width = 1152 / 112
-                fig_height = 880 / 112
-
-                for i in range(len(time_values)):
-                    if i >= 48 and (i - 48) % 3 != 0:
-                        continue
-
-                    fig = plt.figure(figsize=(fig_width, fig_height), dpi=112)
-                    ax = plt.axes(projection=ccrs.PlateCarree())
-                    slice_data = conf['var'].isel(**{time_dim: i})
-
-                    try:
-                        slice_cropped = slice_data.sel(lon=slice(lon_min, lon_max), lat=slice(lat_min, lat_max))
-                        if slice_cropped.size == 0:
-                            raise ValueError
-                        slice_min = float(slice_cropped.min(skipna=True))
-                        slice_max = float(slice_cropped.max(skipna=True))
-                    except:
-                        slice_min = float(slice_data.min(skipna=True))
-                        slice_max = float(slice_data.max(skipna=True))
-
-                    slice_data.plot.contourf(
-                        ax=ax,
-                        transform=ccrs.PlateCarree(),
-                        cmap=conf['cmap'],
-                        norm=conf['norm'],
-                        levels=conf['levels']
-                    )
-
-                    if var_key == 'pressure':
-                        cl = slice_data.plot.contour(ax=ax, transform=ccrs.PlateCarree(),
-                                                     colors='black', linewidths=0.8, levels=conf['levels'])
-                        ax.clabel(cl, inline=True, fontsize=9, fmt="%d", inline_spacing=8, use_clabeltext=True)
-
-                    ax.coastlines(resolution='10m', linewidth=1.2)
-                    ax.add_feature(cfeature.BORDERS, linestyle='-', edgecolor='black', linewidth=1.2, alpha=0.9)
-                    ax.gridlines(draw_labels=True, linewidth=0.8, color='gray', alpha=0.5)
-                    ax.set_extent(extent)
-
-                    valid_dt = pd.to_datetime(time_values[i]) + pd.Timedelta(hours=2)
-                    valid_str = valid_dt.strftime("%a %d %b %H:%M EET")
-
-                    plt.title(
-                        f"HARMONIE {conf['title']}\nValid: {valid_str} | +{i}h from run {run_time_str}\n"
-                        f"Min: {slice_min:.1f} {conf['unit']} | Max: {slice_max:.1f} {conf['unit']}",
-                        fontsize=13, pad=15
-                    )
-
-                    frame_path = f"frame_{var_key}{suffix}_{i:03d}.png"
-                    plt.savefig(frame_path, dpi=112, facecolor='white', pad_inches=0.3)
-                    plt.close()
-                    frame_paths.append(frame_path)
-
-                # MP4 encoding
-                video_path = f"{var_key}{suffix}_animation.mp4"
-                with imageio.get_writer(video_path, fps=2, codec='libx264',
-                                        pixelformat='yuv420p', quality=8,
-                                        macro_block_size=16) as writer:
-                    for fp in frame_paths:
-                        writer.append_data(imageio.imread(fp))
-
-                # Cleanup frames
-                for fp in frame_paths:
-                    os.remove(fp)
-
-                print(f"Successfully completed {var_key}")
-                success = True
-                break  # Success — exit retry loop
-
-            except Exception as e:
-                print(f"Error processing {var_key} (attempt {attempt + 1}): {e}")
-                if attempt < max_retries - 1:
-                    print(f"Retrying {var_key} in {retry_delay} seconds...")
-                    time.sleep(retry_delay)
-                else:
-                    print(f"Failed {var_key} after {max_retries} attempts — skipping")
-
-        if not success:
-            print(f"WARNING: {var_key} did not complete successfully after retries")
+        for fp in frame_paths:
+            os.remove(fp)
 
 if os.path.exists("harmonie.nc"):
     os.remove("harmonie.nc")
