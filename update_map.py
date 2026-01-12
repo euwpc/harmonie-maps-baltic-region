@@ -61,7 +61,7 @@ download_url = (
     "producer=harmonie_scandinavia_surface&"
     "param=temperature,Dewpoint,Pressure,CAPE,WindGust,Precipitation1h&"
     "format=netcdf&"
-    "bbox=19.5,53.5,30.5,61.5&"
+    "bbox=10,53,35,71&"
     "projection=EPSG:4326"
 )
 response = requests.get(download_url, timeout=300)
